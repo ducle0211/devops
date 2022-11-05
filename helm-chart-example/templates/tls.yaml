@@ -1,0 +1,17 @@
+{{- if .Values.certificate.create -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  annotations:
+    cert-manager.io/alt-names: {{ .Values.certificate.dns }}
+    cert-manager.io/certificate-name: {{ .Values.certificate.name }}
+    cert-manager.io/common-name: {{ .Values.certificate.dns }}
+    cert-manager.io/issuer-group: cert-manager.io
+    cert-manager.io/issuer-kind: ClusterIssuer
+  name: {{ .Values.certificate.name }}
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ .Values.certificate.tlsCrt }}
+  tls.key: {{ .Values.certificate.tlsKey }}
+{{- end }}

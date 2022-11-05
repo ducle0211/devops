@@ -1,0 +1,172 @@
+variables:
+  DOCKER_IMAGE: $DOCKER_REPO:$CI_COMMIT_REF_NAME-$CI_PIPELINE_ID
+  DOCKER_IMAGE_LATEST: $DOCKER_REPO:$CI_COMMIT_REF_NAME
+  SERVICE: service2
+
+stages:
+  - test
+  - build
+  - dockerize
+  - deploy
+  - notification_success
+  - notification_failed
+  - dependencycheck
+  - notify-dependencycheck
+
+notification_success:
+  stage: notification_success
+  before_script:
+    - apk update && apk add curl
+  script:
+    - 'curl -s -X POST --data-urlencode "payload={\"username\": \"Gaming ${SERVICE} (CICD)\", \"text\": \"Status: SUCCESS\nPipeline URL: ${CI_PIPELINE_URL}\", \"icon_emoji\": \":white_check_mark:\"}" https://hooks.slack.com/services/${SLACK_REFER}'
+  when: on_success
+
+notification_failed:
+  stage: notification_failed
+  before_script:
+    - apk update && apk add curl
+  script:
+    - 'curl -s -X POST --data-urlencode "payload={\"username\": \"Gaming ${SERVICE} (CICD)\", \"text\": \"Status: FAILED\nPipeline URL: ${CI_PIPELINE_URL}\", \"icon_emoji\": \":no_entry_sign:\"}" https://hooks.slack.com/services/${SLACK_REFER}'
+  when: on_failure
+
+notify-dependencycheck:
+  stage: notify-dependencycheck
+  before_script:
+    - apk update && apk add curl
+  only:
+    - staging
+    - pre-staging
+  script:
+    - PREVIOUS_JOB_ID=`cat jobid.txt`
+    - 'curl -s -X POST --data-urlencode "payload={\"username\": \"Scan dependency\", \"text\": \"Status: Scan Dependency Complete for repo ${SERVICE} \nURL: https://naga-gaming.gitlab.io/-/game/backend/demo-operator-api/-/jobs/${PREVIOUS_JOB_ID}/artifacts/dependency-check-report.html\", \"icon_emoji\": \":white_check_mark:\"}" https://hooks.slack.com/services/${SLACK_REFER}'
+
+build-service2:
+  image: node:18
+  stage: build
+  interruptible: true
+  environment:
+    name: $CI_COMMIT_REF_SLUG
+  cache:
+    key: $CI_COMMIT_REF_SLUG
+    paths:
+      - node_modules/
+      - .npm/
+  except:
+    - pre-staging
+    - staging
+  before_script:
+    - cd service2
+    - npm install --legacy-peer-deps
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - ./dist
+    when: on_success
+    expire_in: 1 hrs
+
+# dockerize:
+  # image: docker:stable-dind
+  # environment:
+  #   name: $CI_COMMIT_REF_SLUG
+  # services:
+  #   - name: docker:stable-dind
+  # only:
+  #   - pre-staging
+  #   - staging
+  # stage: dockerize
+  # interruptible: true
+  # retry:
+  #   max: 2
+  #   when:
+  #     - runner_system_failure
+  #     - stuck_or_timeout_failure
+  #     - unknown_failure
+  # before_script:
+  #   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY_URL
+  # script:
+  #   # BUILD IMAGE
+  #   # - docker build -t $DOCKER_IMAGE_LATEST .
+  #   # - docker tag $DOCKER_IMAGE_LATEST $DOCKER_IMAGE
+  #     - docker build -t registry.gitlab.com/naga-gaming/game/backend/demo-operator-api:fix-test-cicd .
+  #   # PUSH IMAGE
+  #   # - docker push $DOCKER_IMAGE_LATEST
+  #   # - docker push $DOCKER_IMAGE    
+
+dockerize-service2:
+  stage: dockerize
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  only:
+    - develop
+    - pre-staging
+    - staging
+  interruptible: true
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - >-
+      /kaniko/executor
+      --single-snapshot
+      --snapshotMode=redo
+      --context "${CI_PROJECT_DIR}/service2"
+      --dockerfile "${CI_PROJECT_DIR}/service2/Dockerfile"
+      --destination "$DOCKER_IMAGE"
+      --destination "$DOCKER_IMAGE_LATEST"
+
+deploy:
+  image: node:17
+  only:
+    - develop
+  stage: deploy
+  interruptible: false
+  environment:
+    name: $CI_COMMIT_REF_SLUG
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  script:
+    - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    - chmod +x ./kubectl
+    - mv ./kubectl /usr/local/bin/kubectl
+    - kubectl config set-cluster k8s --server=${SERVER_K8S}
+    - kubectl config set clusters.k8s.certificate-authority-data ${CERTIFICATE_AUTHORITY_DATA}
+    - kubectl config set-credentials gitlab --token="${USER_TOKEN}"
+    - kubectl config set-context k8s --cluster=k8s --user=gitlab
+    - kubectl config use-context k8s
+    - kubectl --namespace=backend set image deployment/${SERVICE} ${SERVICE}=$IMAGE
+
+dependencycheck:
+  stage: dependencycheck
+  image:
+    name: owasp/dependency-check
+    entrypoint: ['']
+  only:
+    - staging
+    - pre-staging
+  before_script:
+    - mkdir data
+    - mkdir dependency-check
+  script:
+    - /usr/share/dependency-check/bin/dependency-check.sh --scan "./" --format ALL --project "$CI_PROJECT_NAME" --failOnCVSS 0 --suppression /suppressions/npm_fp_suppression.xml --suppression /suppressions/npm_na_suppressions.xml
+  after_script:
+    - echo $CI_JOB_ID > jobid.txt
+  allow_failure: true
+  artifacts:
+    when: always
+    expose_as: 'OWASP Dependency Check Report'
+    paths:
+      - 'dependency-check-report.html'
+      - 'dependency-check-report.json'
+      - 'jobid.txt'
+    expire_in: 3 day
