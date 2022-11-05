@@ -1,0 +1,13 @@
+.DS_Store
+internal/.DS_Store
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.bat
+
+*.env
+
+main*
