@@ -1,0 +1,86 @@
+version: '3.1'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: root
+      RABBITMQ_DEFAULT_PASS: root
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  caching:
+    image: bitnami/redis:6.2
+    restart: on-failure
+    environment:
+      - REDIS_PASSWORD=gaming_backend
+    logging:
+      options:
+        max-size: '100k'
+    ports:
+      - 6379:6379
+
+  service-backend:
+    depends_on:
+      - caching
+      - rabbitmq
+      - pd
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    logging:
+      options:
+        max-size: '5m'
+    restart: unless-stopped
+    volumes:
+      - ./:/usr/src/app:cached
+    ports:
+      - 3000:3000
+    env_file:
+      - .env
+
+  pd:
+    image: pingcap/pd:latest
+    ports:
+      - '2379'
+    volumes:
+      - ./docker/tidb/data:/data
+    command:
+      - --name=pd
+      - --client-urls=http://0.0.0.0:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-client-urls=http://pd:2379
+      - --advertise-peer-urls=http://pd:2380
+      - --initial-cluster=pd=http://pd:2380
+      - --data-dir=/data/pd
+    restart: on-failure
+
+  tikv:
+    image: pingcap/tikv:latest
+    volumes:
+      - ./docker/tidb/data:/data
+    command:
+      - --addr=0.0.0.0:20160
+      - --advertise-addr=tikv:20160
+      - --data-dir=/data/tikv
+      - --pd=pd:2379
+    depends_on:
+      - 'pd'  
+    restart: on-failure
+
+  tidb:
+    image: pingcap/tidb:latest
+    ports:
+      - "4000:4000"
+      - "10080:10080"
+    volumes:
+      - ./docker/tidb/config/tidb.toml:/tidb.toml:ro
+    command:
+      - --store=tikv
+      - --path=pd:2379
+      - --config=/tidb.toml
+      - --advertise-address=tidb
+    depends_on:
+      - "tikv"
+    restart: on-failure
