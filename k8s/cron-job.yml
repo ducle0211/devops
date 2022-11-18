@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron
+  namespace: backend
+spec:
+  schedule: "0 */3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 50
+      template:
+        spec:
+          serviceAccountName: gitlab-account
+          containers:
+          - name: hello
+            image: bitnami/kubectl:latest
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "-c", "kubectl annotate --overwrite ingress api nginx.ingress.kubernetes.io/whitelist-source-range=$( curl --location --request GET 'https://api.local.com/whitelist'  --header 'x-gamify-signature: abc' -k)"]
+          restartPolicy: OnFailure
+
