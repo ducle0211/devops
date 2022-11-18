@@ -2,7 +2,7 @@ FROM nginx:stable
 
 WORKDIR /usr/src/app
 
-# Copy game client to container
+# Copy source code to container
 COPY ./build-todeploy/ /usr/src/app/
 
 # Copy nginx config to container
