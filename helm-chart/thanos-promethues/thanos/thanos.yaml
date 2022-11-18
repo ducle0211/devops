@@ -1,0 +1,5 @@
+  type: AZURE
+  config:
+    storage_account: "<Name Storage Account>"
+    storage_account_key: "<Key Storage>"
+    container: "<Container In Storage>"
