@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notify-weekly
+  namespace: backend
+spec:
+  schedule: "30 3 * * MON"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 60
+      template:
+        spec:
+          imagePullSecrets:
+          - name: registry-gitlab-com
+          containers:
+          - name: notify-weekly
+            image: registry.gitlab.com/naga-gaming/game/cloud/charts/weeky-report:v2
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: URL
+                value: <URL>
+              - name: AUTH_TOKEN
+                value: <Token Authen Sentry>
+              - name: SLACK_BOT_TOKEN
+                value: <Token Slack>
+              - name: CHANNEL_ID
+                value: <Channel ID>                
+          restartPolicy: OnFailure
+
+
