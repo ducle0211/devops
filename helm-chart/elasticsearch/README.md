@@ -11,7 +11,7 @@ make secrets
 ```
 
 - Add key store with Azure Storage infomation
-    - These key store will config at keystora.secretname
+    - Refer this link: https://songer.pro/elasticsearch-snapshots-with-azure-part-1-setting-up-azure-blob/
     - azure-client-secondary-account: name storage Azure
     - azure-client-secondary-key: key access to storage Azure
 
@@ -20,7 +20,9 @@ kubectl create secret generic azure-client-secondary-account --from-literal=azur
 
 kubectl create secret generic azure-client-secondary-key --from-literal=azure.client.secondary.key='<key-storage>' -n elastic
 ```
-    - Config values.yaml
+
+- Config values.yaml
+
 ```
 keystore:
   - secretName: azure-client-secondary-account
