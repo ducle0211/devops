@@ -1,0 +1,36 @@
+stages:
+  - upload-storage
+  - purge-cdn
+
+upload-storage:
+  stage: upload-storage
+  image: mcr.microsoft.com/azure-cli
+  only:
+    - develop
+  interruptible: false
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  script:
+    - az login -u $AZ_USER_NAME -p $AZ_USER_PASSWORD    
+    - az storage blob upload-batch  --account-name <Name Storage> -s ./<folder-static> -d '$web' --auth-mode login --overwrite=true
+    - echo "Uploaded to storage successfully"
+
+purge-cdn:
+  stage: purge-cdn
+  image: mcr.microsoft.com/azure-cli
+  only:
+    - develop
+  interruptible: false
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  script:    
+    - az cdn endpoint purge -g <Resource Group>  --profile-name <Name CDN> --name <Name Endpoint> --content-paths "/*"
+    - echo "Purged cache CDN complete"
