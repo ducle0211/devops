@@ -1,0 +1,17 @@
+apiVersion: kuma.io/v1alpha1
+kind: TrafficRoute
+mesh: default
+metadata: 
+  name: route-demo
+spec: 
+  sources: 
+    - match: 
+        kuma.io/service: demo-app_kuma-demo_svc_5000
+  destinations: 
+    - match: 
+        kuma.io/service: redis_kuma-demo_svc_6379
+  conf: 
+    loadBalancer: 
+      roundRobin: 
+    destination: 
+      kuma.io/service: '*'
