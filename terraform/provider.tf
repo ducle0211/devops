@@ -1,5 +1,5 @@
 terraform {
-  demo "azurerm" {
+  backend "azurerm" {
     storage_account_name = "<NAME_STORAGE>"
     container_name       = "<NAME_CONTAINER_STORAGE>"
     key                  = "terraform.tfstate"
