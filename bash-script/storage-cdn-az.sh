@@ -2,9 +2,9 @@
 
 # Create a file and write name storage in this file
 file="storage.txt"
-line=$(cat $file)
+lines=$(cat $file)
 
-for i in $line
+for i in $lines
 do 
     az storage account create --name <name>$i --resource-group <resource-group> --access-tier Hot --default-action Allow --encryption-services {blob,file,queue,table} --https-only true --location eastasia --kind StorageV2 --min-tls-version TLS1_2 --public-network-access Enabled --allow-shared-key-access true --routing-choice InternetRouting --sku Standard_RAGRS
     az storage blob service-properties update --account-name <name>$i --static-website --index-document index.html
