@@ -1,0 +1,36 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  namespace: vault
+  name: demo-vault
+spec:
+  containers:
+    - name: demo-vault
+      image: <image>
+      volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      env:
+      - name: SECRET_1
+        valueFrom:
+          secretKeyRef:
+            name: demo-secret
+            key: key1
+      - name: SECRET_2
+        valueFrom:
+          secretKeyRef:
+            name: demo-secret
+            key: key2
+      - name: SECRET_3
+        valueFrom:
+          secretKeyRef:
+            name: demo-secret
+            key: key3
+  volumes:
+    - name: secrets-store01-inline
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: "azure-sync"
